@@ -2,48 +2,43 @@ import streamlit as st
 import yfinance as yf
 import numpy as np
 import plotly.graph_objects as go
-import pandas as pd
 
-st.set_page_config(page_title="TRADING SYSTEM PRO CLEAN", layout="wide")
+st.set_page_config(page_title="TRADING SYSTEM PRO", layout="wide")
+st.title("📊 TRADING SYSTEM PRO (STABLE VERSION)")
 
-st.title("📊 TRADING SYSTEM PRO UI (CLEAN RESET FINAL)")
-
-assets = ["GC=F", "QQQ", "BTC-USD"]
-asset = st.selectbox("Select Asset", assets)
+asset = st.selectbox("Select Asset", ["GC=F", "QQQ", "BTC-USD"])
 
 # =========================
-# DATA (ROBUST CORE)
+# SAFE DATA LOAD
 # =========================
 df = yf.download(asset, period="5d", interval="15m", progress=False)
 
 if df is None or df.empty:
-    st.error("No data received from Yahoo Finance")
+    st.error("No data available from source")
     st.stop()
 
 df = df.dropna()
 
 # =========================
-# FORCE CLEAN NUMERIC DATA
+# SAFE NUMERIC EXTRACTION (CRITICAL FIX)
 # =========================
-df = df.apply(pd.to_numeric, errors="coerce")
-df = df.dropna()
+try:
+    close = df["Close"].to_numpy(dtype=float)
+    high = df["High"].to_numpy(dtype=float)
+    low = df["Low"].to_numpy(dtype=float)
+    open_ = df["Open"].to_numpy(dtype=float)
+except Exception:
+    st.error("Data format error from provider")
+    st.stop()
 
-if len(df) < 50:
-    st.error("Not enough clean data")
+if len(close) < 50:
+    st.error("Not enough market data")
     st.stop()
 
 # =========================
-# PRICE (SINGLE SOURCE, NO ERRORS)
+# SAFE PRICE (NO FAIL ZONE)
 # =========================
-price = float(df["Close"].iloc[-1])
-
-# =========================
-# SERIES
-# =========================
-close = df["Close"].values
-high = df["High"].values
-low = df["Low"].values
-open_ = df["Open"].values
+price = float(close[-1])
 
 # =========================
 # STRUCTURE
@@ -55,7 +50,7 @@ sweep_high = price > high_20 * 0.999
 sweep_low = price < low_20 * 1.001
 
 # =========================
-# ORDER BLOCKS (SAFE LOOP)
+# SIMPLE LOGIC (SAFE LOOP)
 # =========================
 bull_ob = []
 bear_ob = []
@@ -75,22 +70,6 @@ bull_ob = bull_ob[-3:]
 bear_ob = bear_ob[-3:]
 
 # =========================
-# FVG
-# =========================
-bull_fvg = []
-bear_fvg = []
-
-for i in range(2, len(close)):
-    if low[i] > high[i - 2]:
-        bull_fvg.append(high[i - 2])
-
-    if high[i] < low[i - 2]:
-        bear_fvg.append(low[i - 2])
-
-bull_fvg = bull_fvg[-3:]
-bear_fvg = bear_fvg[-3:]
-
-# =========================
 # SCORE ENGINE
 # =========================
 score = 0
@@ -104,8 +83,6 @@ score -= 2 if sweep_high else 0
 
 score += 2 if any(abs(price - x) / price < 0.002 for x in bull_ob) else 0
 score -= 2 if any(abs(price - x) / price < 0.002 for x in bear_ob) else 0
-score += 1 if any(abs(price - x) / price < 0.002 for x in bull_fvg) else 0
-score -= 1 if any(abs(price - x) / price < 0.002 for x in bear_fvg) else 0
 
 # =========================
 # UI
@@ -114,7 +91,7 @@ col1, col2 = st.columns([1, 2])
 
 with col1:
     st.metric("💰 Price", round(price, 2))
-    st.metric("🧠 SMC Score", score)
+    st.metric("🧠 Score", score)
 
     if score >= 3:
         st.success("📈 LONG SETUP")
@@ -123,12 +100,8 @@ with col1:
     else:
         st.warning("⏸ NO TRADE")
 
-    st.divider()
-    st.write("High:", round(high_20, 2))
-    st.write("Low:", round(low_20, 2))
-
 # =========================
-# CHART
+# CHART SAFE
 # =========================
 fig = go.Figure()
 
@@ -142,18 +115,6 @@ fig.add_trace(go.Candlestick(
 
 fig.add_hline(y=high_20, line_dash="dash", line_color="red")
 fig.add_hline(y=low_20, line_dash="dash", line_color="green")
-
-for x in bull_ob:
-    fig.add_hline(y=x, line_color="green", line_dash="dot")
-
-for x in bear_ob:
-    fig.add_hline(y=x, line_color="red", line_dash="dot")
-
-for x in bull_fvg:
-    fig.add_hline(y=x, line_color="lime", line_dash="dash")
-
-for x in bear_fvg:
-    fig.add_hline(y=x, line_color="orange", line_dash="dash")
 
 fig.update_layout(height=650, xaxis_rangeslider_visible=False)
 
