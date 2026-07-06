@@ -12,38 +12,30 @@ assets = ["GC=F", "QQQ", "BTC-USD"]
 asset = st.selectbox("Select Asset", assets)
 
 # =========================
-# SAFE DATA LOAD
+# DATA SAFE LOAD
 # =========================
 df = yf.download(asset, period="5d", interval="15m", progress=False)
 df = df.dropna()
 
 if df is None or df.empty:
-    st.error("❌ No data received from Yahoo Finance")
+    st.error("No data from Yahoo Finance")
     st.stop()
 
 if len(df) < 50:
-    st.warning("⚠️ Not enough data (need at least 50 candles)")
+    st.warning("Not enough data (min 50 candles)")
     st.stop()
 
 # =========================
-# SAFE SERIES
+# CLEAN SERIES (CRITICAL FIX)
 # =========================
-close = df["Close"].dropna()
-high = df["High"].dropna()
-low = df["Low"].dropna()
-open_ = df["Open"].dropna()
+close = df["Close"].dropna().astype(float)
+high = df["High"].dropna().astype(float)
+low = df["Low"].dropna().astype(float)
+open_ = df["Open"].dropna().astype(float)
 
-if len(close) == 0:
-    st.error("❌ Invalid price data")
-    st.stop()
-
-close_clean = close.dropna()
-
-if close_clean.empty:
-    st.error("No valid price data")
-    st.stop()
-
-price = float(close_clean.iloc[-1])
+# SAFE PRICE (FIX FINAL ERROR)
+price = close.tail(1).values[0]
+price = float(price)
 
 # =========================
 # STRUCTURE
@@ -86,17 +78,11 @@ bear_fvg = []
 
 for i in range(2, len(df)):
     try:
-        low_i = float(low.iloc[i])
-        high_i = float(high.iloc[i])
-        low_2 = float(low.iloc[i - 2])
-        high_2 = float(high.iloc[i - 2])
+        if low.iloc[i] > high.iloc[i - 2]:
+            bull_fvg.append(float(high.iloc[i - 2]))
 
-        if low_i > high_2:
-            bull_fvg.append(high_2)
-
-        if high_i < low_2:
-            bear_fvg.append(low_2)
-
+        if high.iloc[i] < low.iloc[i - 2]:
+            bear_fvg.append(float(low.iloc[i - 2]))
     except:
         continue
 
@@ -111,19 +97,64 @@ score = 0
 ema_fast = close.ewm(span=10).mean().iloc[-1]
 ema_slow = close.ewm(span=30).mean().iloc[-1]
 
-if ema_fast > ema_slow:
-    score += 1
-else:
-    score -= 1
+score += 1 if ema_fast > ema_slow else -1
+score += 2 if sweep_low else 0
+score -= 2 if sweep_high else 0
 
-if sweep_low:
-    score += 2
-if sweep_high:
-    score -= 2
+score += 2 if any(abs(price - x) / price < 0.002 for x in bull_ob) else 0
+score -= 2 if any(abs(price - x) / price < 0.002 for x in bear_ob) else 0
+score += 1 if any(abs(price - x) / price < 0.002 for x in bull_fvg) else 0
+score -= 1 if any(abs(price - x) / price < 0.002 for x in bear_fvg) else 0
 
+# =========================
+# UI
+# =========================
+col1, col2 = st.columns([1, 2])
 
-if any(abs(price - x) / price < 0.002 for x in bull_ob):
-    score += 2
+with col1:
+    st.metric("💰 Price", round(price, 2))
+    st.metric("🧠 SMC Score", score)
 
-if any(abs(price - x) / price < 0.002 for x in bear_ob):
-    score -= 2
+    if score >= 3:
+        st.success("📈 LONG SETUP")
+    elif score <= -3:
+        st.error("📉 SHORT SETUP")
+    else:
+        st.warning("⏸ NO TRADE")
+
+    st.divider()
+    st.write("High:", round(high_20, 2))
+    st.write("Low:", round(low_20, 2))
+
+# =========================
+# CHART
+# =========================
+fig = go.Figure()
+
+fig.add_trace(go.Candlestick(
+    x=df.index,
+    open=df["Open"],
+    high=df["High"],
+    low=df["Low"],
+    close=df["Close"]
+))
+
+fig.add_hline(y=high_20, line_dash="dash", line_color="red")
+fig.add_hline(y=low_20, line_dash="dash", line_color="green")
+
+for x in bull_ob:
+    fig.add_hline(y=x, line_color="green", line_dash="dot")
+
+for x in bear_ob:
+    fig.add_hline(y=x, line_color="red", line_dash="dot")
+
+for x in bull_fvg:
+    fig.add_hline(y=x, line_color="lime", line_dash="dash")
+
+for x in bear_fvg:
+    fig.add_hline(y=x, line_color="orange", line_dash="dash")
+
+fig.update_layout(height=650, xaxis_rangeslider_visible=False)
+
+with col2:
+    st.plotly_chart(fig, use_container_width=True)
