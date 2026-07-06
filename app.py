@@ -35,6 +35,14 @@ open_ = df["Open"].dropna().astype(float)
 
 # SAFE PRICE (FIX FINAL ERROR)
 price = close.tail(1).values[0]
+price = close.tail(1).values
+
+price = price[0] if len(price) > 0 else None
+
+if price is None:
+    st.error("No price data")
+    st.stop()
+
 price = float(price)
 
 # =========================
