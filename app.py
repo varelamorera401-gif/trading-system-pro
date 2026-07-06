@@ -163,4 +163,4 @@ for x in bear_fvg:
 fig.update_layout(height=650, xaxis_rangeslider_visible=False)
 
 with col2:
-    st.plotly_chart(fig,
+    st.plotly_chart(fig, use_container_width=True)
