@@ -37,7 +37,13 @@ if len(close) == 0:
     st.error("❌ Invalid price data")
     st.stop()
 
-price = float(close.iloc[-1])
+close_clean = close.dropna()
+
+if close_clean.empty:
+    st.error("No valid price data")
+    st.stop()
+
+price = float(close_clean.iloc[-1])
 
 # =========================
 # STRUCTURE
