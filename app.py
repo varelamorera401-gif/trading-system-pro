@@ -8,7 +8,6 @@ st.set_page_config(page_title="TRADING SYSTEM PRO UI", layout="wide")
 st.title("📊 TRADING SYSTEM PRO UI (SMC PLATFORM)")
 
 assets = ["GC=F", "QQQ", "BTC-USD"]
-
 asset = st.selectbox("Select Asset", assets)
 
 # =========================
@@ -18,32 +17,31 @@ df = yf.download(asset, period="5d", interval="15m", progress=False)
 df = df.dropna()
 
 if df is None or df.empty:
-    st.error("No data from Yahoo Finance")
+    st.error("No data received")
     st.stop()
 
 if len(df) < 50:
-    st.warning("Not enough data (min 50 candles)")
+    st.warning("Not enough candles")
     st.stop()
 
 # =========================
-# CLEAN SERIES (CRITICAL FIX)
+# CLEAN DATA
 # =========================
-close = df["Close"].dropna().astype(float)
-high = df["High"].dropna().astype(float)
-low = df["Low"].dropna().astype(float)
-open_ = df["Open"].dropna().astype(float)
+close = df["Close"].dropna()
+high = df["High"].dropna()
+low = df["Low"].dropna()
+open_ = df["Open"].dropna()
 
-# SAFE PRICE (FIX FINAL ERROR)
-price = close.tail(1).values[0]
-price = close.tail(1).values
+# =========================
+# SAFE PRICE (FIX DEFINITIVO)
+# =========================
+price_array = close.tail(1).to_numpy()
 
-price = price[0] if len(price) > 0 else None
-
-if price is None:
+if price_array.size == 0:
     st.error("No price data")
     st.stop()
 
-price = float(price)
+price = float(price_array[0])
 
 # =========================
 # STRUCTURE
@@ -55,7 +53,7 @@ sweep_high = price > high_20 * 0.999
 sweep_low = price < low_20 * 1.001
 
 # =========================
-# ORDER BLOCKS SAFE
+# ORDER BLOCKS
 # =========================
 bull_ob = []
 bear_ob = []
@@ -79,7 +77,7 @@ bull_ob = bull_ob[-3:]
 bear_ob = bear_ob[-3:]
 
 # =========================
-# FVG SAFE
+# FVG
 # =========================
 bull_fvg = []
 bear_fvg = []
@@ -165,4 +163,4 @@ for x in bear_fvg:
 fig.update_layout(height=650, xaxis_rangeslider_visible=False)
 
 with col2:
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig,
