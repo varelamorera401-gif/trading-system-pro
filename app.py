@@ -2,45 +2,48 @@ import streamlit as st
 import yfinance as yf
 import numpy as np
 import plotly.graph_objects as go
+import pandas as pd
 
-st.set_page_config(page_title="TRADING SYSTEM PRO (BLINDED)", layout="wide")
+st.set_page_config(page_title="TRADING SYSTEM PRO CLEAN", layout="wide")
 
-st.title("📊 TRADING SYSTEM PRO UI (BLINDED VERSION)")
+st.title("📊 TRADING SYSTEM PRO UI (CLEAN RESET FINAL)")
 
 assets = ["GC=F", "QQQ", "BTC-USD"]
 asset = st.selectbox("Select Asset", assets)
 
 # =========================
-# DATA SAFE LOAD (ROBUST)
+# DATA (ROBUST CORE)
 # =========================
 df = yf.download(asset, period="5d", interval="15m", progress=False)
 
-if df is None or len(df) == 0:
-    st.error("No data received from source")
+if df is None or df.empty:
+    st.error("No data received from Yahoo Finance")
     st.stop()
 
 df = df.dropna()
 
+# =========================
+# FORCE CLEAN NUMERIC DATA
+# =========================
+df = df.apply(pd.to_numeric, errors="coerce")
+df = df.dropna()
+
 if len(df) < 50:
-    st.warning("Not enough data (min 50 candles)")
+    st.error("Not enough clean data")
     st.stop()
 
 # =========================
-# FORCE NUMERIC CLEAN DATA
+# PRICE (SINGLE SOURCE, NO ERRORS)
 # =========================
-close = df["Close"].astype("float64").dropna().to_numpy()
-high = df["High"].astype("float64").dropna().to_numpy()
-low = df["Low"].astype("float64").dropna().to_numpy()
-open_ = df["Open"].astype("float64").dropna().to_numpy()
+price = float(df["Close"].iloc[-1])
 
 # =========================
-# SAFE PRICE (NO PANDAS)
+# SERIES
 # =========================
-if close.size == 0:
-    st.error("No price data available")
-    st.stop()
-
-price = float(close[-1])
+close = df["Close"].values
+high = df["High"].values
+low = df["Low"].values
+open_ = df["Open"].values
 
 # =========================
 # STRUCTURE
@@ -52,7 +55,7 @@ sweep_high = price > high_20 * 0.999
 sweep_low = price < low_20 * 1.001
 
 # =========================
-# ORDER BLOCKS (ARRAY SAFE)
+# ORDER BLOCKS (SAFE LOOP)
 # =========================
 bull_ob = []
 bear_ob = []
@@ -72,7 +75,7 @@ bull_ob = bull_ob[-3:]
 bear_ob = bear_ob[-3:]
 
 # =========================
-# FVG SAFE
+# FVG
 # =========================
 bull_fvg = []
 bear_fvg = []
