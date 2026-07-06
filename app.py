@@ -1,4 +1,4 @@
- import streamlit as st
+import streamlit as st
 
 st.title("🚀 App funcionando")
-st.write("Si ves esto, el deploy ya está bien conectado")
+st.write("Ya está arreglado el error de indentación")
