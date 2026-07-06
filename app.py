@@ -12,32 +12,34 @@ assets = ["GC=F", "QQQ", "BTC-USD"]
 asset = st.selectbox("Select Asset", assets)
 
 # =========================
-# DATA SAFE LOAD
+# DATA SAFE
 # =========================
 df = yf.download(asset, period="5d", interval="15m", progress=False)
 
-if df is None or df.empty:
-    st.error("No data available from Yahoo Finance")
+df = df.dropna()
+
+if df.empty:
+    st.error("No data available")
     st.stop()
 
 if len(df) < 50:
-    st.warning("No hay suficientes datos para análisis (mínimo 50 velas)")
+    st.warning("Not enough data (min 50 candles required)")
     st.stop()
 
 close = df["Close"]
-price = close.iloc[-1]
+price = float(close.iloc[-1])
 
 # =========================
 # STRUCTURE
 # =========================
-high_20 = close.tail(20).max()
-low_20 = close.tail(20).min()
+high_20 = float(close.tail(20).max())
+low_20 = float(close.tail(20).min())
 
 sweep_high = price > high_20 * 0.999
 sweep_low = price < low_20 * 1.001
 
 # =========================
-# ORDER BLOCKS (SAFE)
+# ORDER BLOCKS SAFE
 # =========================
 bull_ob = []
 bear_ob = []
@@ -45,13 +47,16 @@ bear_ob = []
 for i in range(5, len(df) - 3):
 
     try:
-        if df["Close"].iloc[i+3] > df["Close"].iloc[i] * 1.01:
-            if df["Close"].iloc[i] < df["Open"].iloc[i]:
-                bull_ob.append(df["Close"].iloc[i])
+        c = float(df["Close"].iloc[i])
+        c3 = float(df["Close"].iloc[i + 3])
+        o = float(df["Open"].iloc[i])
 
-        if df["Close"].iloc[i+3] < df["Close"].iloc[i] * 0.99:
-            if df["Close"].iloc[i] > df["Open"].iloc[i]:
-                bear_ob.append(df["Close"].iloc[i])
+        if c3 > c * 1.01 and c < o:
+            bull_ob.append(c)
+
+        if c3 < c * 0.99 and c > o:
+            bear_ob.append(c)
+
     except:
         continue
 
@@ -59,31 +64,40 @@ bull_ob = bull_ob[-3:]
 bear_ob = bear_ob[-3:]
 
 # =========================
-# FVG
+# FVG SAFE (FIXED)
 # =========================
 bull_fvg = []
 bear_fvg = []
 
 for i in range(2, len(df)):
 
-    if df["Low"].iloc[i] > df["High"].iloc[i-2]:
-        bull_fvg.append(df["High"].iloc[i-2])
+    try:
+        low_i = float(df["Low"].iloc[i])
+        high_i = float(df["High"].iloc[i])
+        low_2 = float(df["Low"].iloc[i - 2])
+        high_2 = float(df["High"].iloc[i - 2])
 
-    if df["High"].iloc[i] < df["Low"].iloc[i-2]:
-        bear_fvg.append(df["Low"].iloc[i-2])
+        if low_i > high_2:
+            bull_fvg.append(high_2)
+
+        if high_i < low_2:
+            bear_fvg.append(low_2)
+
+    except:
+        continue
 
 bull_fvg = bull_fvg[-3:]
 bear_fvg = bear_fvg[-3:]
 
 # =========================
-# SCORE
+# SCORE SYSTEM
 # =========================
 score = 0
 
-ema_f = close.ewm(span=10).mean().iloc[-1]
-ema_s = close.ewm(span=30).mean().iloc[-1]
+ema_fast = close.ewm(span=10).mean().iloc[-1]
+ema_slow = close.ewm(span=30).mean().iloc[-1]
 
-if ema_f > ema_s:
+if ema_fast > ema_slow:
     score += 1
 else:
     score -= 1
@@ -93,16 +107,16 @@ if sweep_low:
 if sweep_high:
     score -= 2
 
-if any(abs(price - x)/price < 0.002 for x in bull_ob):
+if any(abs(price - x) / price < 0.002 for x in bull_ob):
     score += 2
 
-if any(abs(price - x)/price < 0.002 for x in bear_ob):
+if any(abs(price - x) / price < 0.002 for x in bear_ob):
     score -= 2
 
-if any(abs(price - x)/price < 0.002 for x in bull_fvg):
+if any(abs(price - x) / price < 0.002 for x in bull_fvg):
     score += 1
 
-if any(abs(price - x)/price < 0.002 for x in bear_fvg):
+if any(abs(price - x) / price < 0.002 for x in bear_fvg):
     score -= 1
 
 # =========================
@@ -122,7 +136,6 @@ with col1:
         st.warning("⏸ NO TRADE")
 
     st.divider()
-
     st.write("📊 Liquidity Zones")
     st.write("High:", round(high_20, 2))
     st.write("Low:", round(low_20, 2))
@@ -137,8 +150,7 @@ fig.add_trace(go.Candlestick(
     open=df["Open"],
     high=df["High"],
     low=df["Low"],
-    close=df["Close"],
-    name="Price"
+    close=df["Close"]
 ))
 
 fig.add_hline(y=high_20, line_dash="dash", line_color="red")
