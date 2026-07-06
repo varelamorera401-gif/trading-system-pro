@@ -11,17 +11,17 @@ assets = ["GC=F", "QQQ", "BTC-USD"]
 asset = st.selectbox("Select Asset", assets)
 
 # =========================
-# DATA SAFE LOAD
+# DATA LOAD
 # =========================
 df = yf.download(asset, period="5d", interval="15m", progress=False)
 df = df.dropna()
 
-if df is None or df.empty:
-    st.error("No data received")
+if df.empty:
+    st.error("No data available")
     st.stop()
 
 if len(df) < 50:
-    st.warning("Not enough candles")
+    st.warning("Not enough data (min 50 candles)")
     st.stop()
 
 # =========================
@@ -32,16 +32,8 @@ high = df["High"].dropna()
 low = df["Low"].dropna()
 open_ = df["Open"].dropna()
 
-# =========================
-# SAFE PRICE (FIX DEFINITIVO)
-# =========================
-price_array = close.tail(1).to_numpy()
-
-if price_array.size == 0:
-    st.error("No price data")
-    st.stop()
-
-price = float(price_array[0])
+# 🔥 SINGLE SOURCE OF PRICE (NO ERRORES)
+price = float(close.iloc[-1])
 
 # =========================
 # STRUCTURE
@@ -60,15 +52,15 @@ bear_ob = []
 
 for i in range(5, len(df) - 3):
     try:
-        c = float(close.iloc[i])
-        c3 = float(close.iloc[i + 3])
-        o = float(open_.iloc[i])
+        c = close.iloc[i]
+        c3 = close.iloc[i + 3]
+        o = open_.iloc[i]
 
         if c3 > c * 1.01 and c < o:
-            bull_ob.append(c)
+            bull_ob.append(float(c))
 
         if c3 < c * 0.99 and c > o:
-            bear_ob.append(c)
+            bear_ob.append(float(c))
 
     except:
         continue
@@ -96,21 +88,34 @@ bull_fvg = bull_fvg[-3:]
 bear_fvg = bear_fvg[-3:]
 
 # =========================
-# SCORE
+# SCORE SYSTEM
 # =========================
 score = 0
 
 ema_fast = close.ewm(span=10).mean().iloc[-1]
 ema_slow = close.ewm(span=30).mean().iloc[-1]
 
-score += 1 if ema_fast > ema_slow else -1
-score += 2 if sweep_low else 0
-score -= 2 if sweep_high else 0
+if ema_fast > ema_slow:
+    score += 1
+else:
+    score -= 1
 
-score += 2 if any(abs(price - x) / price < 0.002 for x in bull_ob) else 0
-score -= 2 if any(abs(price - x) / price < 0.002 for x in bear_ob) else 0
-score += 1 if any(abs(price - x) / price < 0.002 for x in bull_fvg) else 0
-score -= 1 if any(abs(price - x) / price < 0.002 for x in bear_fvg) else 0
+if sweep_low:
+    score += 2
+if sweep_high:
+    score -= 2
+
+if any(abs(price - x) / price < 0.002 for x in bull_ob):
+    score += 2
+
+if any(abs(price - x) / price < 0.002 for x in bear_ob):
+    score -= 2
+
+if any(abs(price - x) / price < 0.002 for x in bull_fvg):
+    score += 1
+
+if any(abs(price - x) / price < 0.002 for x in bear_fvg):
+    score -= 1
 
 # =========================
 # UI
