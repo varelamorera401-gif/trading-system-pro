@@ -115,4 +115,9 @@ if sweep_low:
 if sweep_high:
     score -= 2
 
-if any(abs(price - x) / price < 0.002 for x in bull
+
+if any(abs(price - x) / price < 0.002 for x in bull_ob):
+    score += 2
+
+if any(abs(price - x) / price < 0.002 for x in bear_ob):
+    score -= 2
